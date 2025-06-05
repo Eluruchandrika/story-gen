@@ -1,7 +1,7 @@
 import streamlit as st
 import requests
 
-API_URL = "http://127.0.0.1:8000/generate_story"
+API_URL = "https://ai-story-backend-1h6m.onrender.com/generate_story"
 
 st.title("AI-Powered Creative Story Generator")
 st.write("Generate unique AI-Powered Stories and listion to them!")
