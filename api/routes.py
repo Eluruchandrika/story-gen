@@ -58,7 +58,7 @@ async def generate_story(request: StoryRequest):
         "content": content,
         "audio_url": audio_url,
         "source": "ai",
-        "status": "published"
+        "status": request.status
     }
 
     result = await story_collection.insert_one(story)
