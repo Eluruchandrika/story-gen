@@ -8,8 +8,7 @@ app = FastAPI(title="AI-Powered Story Generator API")
 # Include API routes
 app.include_router(router)
 
-# Serve static files (audio)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # CORS setup – for development only
 app.add_middleware(
