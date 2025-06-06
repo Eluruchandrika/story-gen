@@ -36,7 +36,7 @@ class ManualStoryRequest(BaseModel):
 async def generate_story(request: StoryRequest):
     content = generate_ai_story(request.genre, request.theme, request.length)
     audio_path = text_to_speech(content)
-    audio_url = f"http://127.0.0.1:8000/{audio_path}"
+    audio_url = f"https://ai-story-backend-1h6m.onrender.com/{audio_path}"
     first_line = content.strip().split("\n")[0]
     title = first_line if len(first_line) < 100 else first_line[:97] + "..."
 
@@ -59,7 +59,7 @@ async def generate_story(request: StoryRequest):
 @router.post("/create_manual_story", response_model=Story)
 async def create_manual_story(request: ManualStoryRequest):
     audio_path = text_to_speech(request.content)
-    audio_url = f"http://127.0.0.1:8000/{audio_path}"
+    audio_url = f"https://ai-story-backend-1h6m.onrender.com/{audio_path}"
 
     story = {
         "genre": request.genre,
