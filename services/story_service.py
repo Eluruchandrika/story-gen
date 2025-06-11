@@ -2,15 +2,21 @@ import os
 import asyncio
 from io import BytesIO
 from typing import Optional
+from datetime import datetime
 
 from dotenv import load_dotenv
 import httpx
 from gtts import gTTS
+from bson import ObjectId
 
+from db.mongo import story_collection  # Only story_collection now
+
+# Load environment variables
 load_dotenv()
 
+# API Keys
 OPENROUTER_API_KEY: Optional[str] = os.getenv("OPENROUTER_API_KEY")
-OPENROUTER_MODEL: str = "openai/gpt-3.5-turbo"
+OPENROUTER_MODEL = "openai/gpt-3.5-turbo"
 UNSPLASH_ACCESS_KEY: Optional[str] = os.getenv("UNSPLASH_ACCESS_KEY")
 
 if not OPENROUTER_API_KEY:
@@ -19,49 +25,22 @@ if not OPENROUTER_API_KEY:
 if not UNSPLASH_ACCESS_KEY:
     print("Warning: UNSPLASH_ACCESS_KEY not set in environment variables. Using fallback image URLs.")
 
-# Language codes supported by gTTS and for prompt language naming
+# Language Code Mapping
 LANGUAGE_CODES = {
-    "english": "en",
-    "hindi": "hi",
-    "spanish": "es",
-    "french": "fr",
-    "german": "de",
-    "bengali": "bn",
-    "tamil": "ta",
-    "gujarati": "gu",
-    "japanese": "ja",
-    "chinese": "zh",
-    "portuguese": "pt",
-    "italian": "it",
-    "russian": "ru",
-    "arabic": "ar",
-    "swahili": "sw",
-    "dutch": "nl",
-    "kannada": "kn",
-    "malayalam": "ml",
-    "telugu": "te",
-    "sinhala": "si",
-    # Add more if needed
+    "english": "en", "hindi": "hi", "spanish": "es", "french": "fr", "german": "de",
+    "bengali": "bn", "tamil": "ta", "gujarati": "gu", "japanese": "ja", "chinese": "zh",
+    "portuguese": "pt", "italian": "it", "russian": "ru", "arabic": "ar", "swahili": "sw",
+    "dutch": "nl", "kannada": "kn", "malayalam": "ml", "telugu": "te", "sinhala": "si"
 }
 
-async def generate_ai_story(
-    genre: str,
-    theme: str,
-    length: str,
-    language: str = "english"
-) -> str:
-    """
-    Async function to generate AI story using OpenRouter API via httpx,
-    in the specified language.
-    """
+# === STORY GENERATION ===
+async def generate_ai_story(genre: str, theme: str, length: str, language: str = "english") -> str:
     prompt = f"Write a {length} {genre} story about {theme} in {language}. Make it engaging and creative."
-
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "http://localhost",
         "Content-Type": "application/json"
     }
-
     data = {
         "model": OPENROUTER_MODEL,
         "messages": [
@@ -72,39 +51,16 @@ async def generate_ai_story(
 
     async with httpx.AsyncClient(timeout=15) as client:
         try:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=data
-            )
+            response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
             response.raise_for_status()
-            json_response = response.json()
-
-            choices = json_response.get("choices")
-            if not choices or not isinstance(choices, list):
-                raise Exception("No choices found in OpenRouter response")
-
-            message = choices[0].get("message")
-            if not message or "content" not in message:
-                raise Exception("No content found in OpenRouter response message")
-
-            story = message["content"].strip()
+            story = response.json()["choices"][0]["message"]["content"].strip()
             return story
-
-        except httpx.RequestError as e:
-            raise Exception(f"OpenRouter API request failed: {e}")
         except Exception as e:
-            raise Exception(f"OpenRouter API error: {e}")
+            raise Exception(f"OpenRouter API failed: {e}")
 
+# === TITLE GENERATION ===
 async def generate_story_title(story_text: str, language: str = "english") -> str:
-    """
-    Generate a short summarized title (max 5 words) for the story text
-    in the specified language.
-    """
-    prompt = (
-        f"Summarize the following story into a short title (max 5 words) in {language}:\n\n{story_text}"
-    )
-
+    prompt = f"Summarize the following story into a short title (max 5 words) in {language}:\n\n{story_text}"
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "HTTP-Referer": "http://localhost",
@@ -119,81 +75,88 @@ async def generate_story_title(story_text: str, language: str = "english") -> st
     }
 
     async with httpx.AsyncClient(timeout=15) as client:
-        response = await client.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            headers=headers,
-            json=data
-        )
+        response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
         response.raise_for_status()
-        json_response = response.json()
-        choices = json_response.get("choices", [])
-        if not choices:
-            raise Exception("No choices found in OpenRouter response")
-        message = choices[0].get("message", {})
-        title = message.get("content", "").strip()
-        # Optionally truncate to 5 words if API returns longer
-        title_words = title.split()
-        if len(title_words) > 5:
-            title = " ".join(title_words[:5])
-        return title
+        title = response.json()["choices"][0]["message"]["content"].strip()
+        return " ".join(title.split()[:5])  # limit to 5 words
 
+# === TEXT TO SPEECH ===
 async def text_to_speech(story_text: str, language: str = "english") -> BytesIO:
-    """
-    Async wrapper around gTTS, supporting multiple languages.
-    """
     loop = asyncio.get_running_loop()
     lang_code = LANGUAGE_CODES.get(language.lower(), "en")
 
-    def generate_audio():
-        tts = gTTS(text=story_text, lang=lang_code)
+    def generate_audio(text: str, lang: str) -> BytesIO:
+        tts = gTTS(text=text, lang=lang)
         audio_bytes = BytesIO()
         tts.write_to_fp(audio_bytes)
         audio_bytes.seek(0)
         return audio_bytes
 
     try:
-        audio_bytes = await loop.run_in_executor(None, generate_audio)
-        return audio_bytes
-    except Exception as e:
-        raise Exception(f"TTS generation failed: {e}")
+        return await loop.run_in_executor(None, generate_audio, story_text, lang_code)
+    except Exception:
+        fallback = await loop.run_in_executor(None, generate_audio, "Audio unavailable. Please try again later.", "en")
+        return fallback
 
+# === IMAGE FETCH ===
 async def fetch_image_url(title: str, theme: str, genre: str) -> str:
-    """
-    Returns an image URL from Unsplash API using combined keywords,
-    or falls back to source.unsplash.com if API call fails or key not set.
-    """
-    # Combine keywords, remove empties
-    keywords_list = []
-    if title and title.strip():
-        keywords_list.append(title.strip())
-    if theme and theme.strip():
-        keywords_list.append(theme.strip())
-    if genre and genre.strip():
-        keywords_list.append(genre.strip())
-    query = ", ".join(keywords_list) if keywords_list else "story"
+    query = ", ".join(filter(None, [title.strip(), theme.strip(), genre.strip()]))
+    query = query if query else "story"
 
     if not UNSPLASH_ACCESS_KEY:
-        # Fallback URL (random image with keywords)
         return f"https://source.unsplash.com/800x600/?{query.replace(' ', '+')}"
 
     url = "https://api.unsplash.com/search/photos"
     headers = {"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
-    params = {
-        "query": query,
-        "per_page": 1,
-        "orientation": "landscape",
-    }
+    params = {"query": query, "per_page": 1, "orientation": "landscape"}
 
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             response = await client.get(url, headers=headers, params=params)
             response.raise_for_status()
-            data = response.json()
-            results = data.get("results", [])
+            results = response.json().get("results", [])
             if results:
                 return results[0]["urls"]["regular"]
     except Exception:
         pass
 
-    # Fallback if API call failed
     return f"https://source.unsplash.com/800x600/?{query.replace(' ', '+')}"
+
+# === SAVE GENERATED STORY ===
+async def save_story_to_db(user_id: str, username: str, story_data: dict) -> dict:
+    story_doc = {
+        **story_data,
+        "user_id": ObjectId(user_id),
+        "username": username,
+        "status": "published",
+        "source": "ai",
+        "bookmarked_by": [],
+        "created_at": datetime.utcnow(),
+        "updated_at": datetime.utcnow()
+    }
+
+    result = await story_collection.insert_one(story_doc)
+    story_doc["id"] = str(result.inserted_id)
+    story_doc["user_id"] = str(story_doc["user_id"])
+    story_doc["created_at"] = story_doc["created_at"].isoformat() + "Z"
+
+    return story_doc
+
+# === SAVE A STORY TO USER'S LIBRARY (Bookmark) ===
+async def save_to_user_library(user_id: str, story_id: str) -> bool:
+    # Check if user already bookmarked
+    story = await story_collection.find_one({
+        "_id": ObjectId(story_id),
+        "bookmarked_by": str(user_id)
+    })
+
+    if story:
+        # Already bookmarked
+        return False
+
+    update_result = await story_collection.update_one(
+        {"_id": ObjectId(story_id)},
+        {"$addToSet": {"bookmarked_by": str(user_id)}}
+    )
+
+    return update_result.modified_count == 1

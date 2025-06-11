@@ -1,35 +1,55 @@
 import streamlit as st
 import requests
+import re
 
-API_URL = "https://ai-story-backend-1h6m.onrender.com/generate_story"
+API_URL = "http://127.0.0.1:8000/generate_story"
 
-st.title("AI-Powered Creative Story Generator")
-st.write("Generate unique AI-Powered Stories and listion to them!")
+st.title("🧠✨ AI-Powered Creative Story Generator")
+st.write("Generate unique stories using AI and listen to them!")
 
-genre = st.selectbox("Select Genre",["Fantasy", "Sci-Fi" , "Mystery","Adventure","Horror","Romance"])
+genre = st.selectbox("Select Genre", ["Fantasy", "Sci-Fi", "Mystery", "Adventure", "Horror", "Romance"])
 theme = st.text_input("Enter Story Theme", "A lost Kingdom")
-length = st.selectbox("Story Length" , ["short","medium","long"])
+length = st.selectbox("Story Length", ["short", "medium", "long"])
 
 if st.button("Generate Story"):
-    with st.spinner("Generating Your Story..."):
-        response = requests.post(API_URL,json={"genre":genre,"theme":theme,"length":length})
+    with st.spinner("Generating your story..."):
+        try:
+            response = requests.post(API_URL, json={
+                "genre": genre,
+                "theme": theme,
+                "length": length,
+                "language": "english"
+            })
 
-        if response.status_code ==200:
-            data = response.json()
-            story_text=data["story"]
-            audio_url=data["audio_url"]
+            if response.status_code == 200:
+                data = response.json()
+                title = data.get("title", "Untitled")
+                content = data.get("content", "No content generated.")
+                audio_url = data.get("audio_url")
+                image_url = data.get("image_url", "")
 
-            st.subheader(" your AI-Generated Story")
-            st.write(story_text)
+                st.subheader(f"📖 {title}")
+                if image_url:
+                    st.image(image_url, use_column_width=True)
+                st.write(content)
 
-            st.subheader("Listion to Your Story")
-            st.audio(audio_url)
+                st.subheader("🔊 Listen to Your Story")
+                if audio_url:
+                    st.audio(audio_url)
+                else:
+                    st.info("Audio unavailable for this story.")
 
-            story_file = f"story_{genre}_{theme}.txt"
-            with open(story_file,"w", encoding="utf-8") as f:
-                f.write(story_text)
-            
-            st.download_button(label="Download Story as Text", data=story_text ,file_name=story_file, mime="text/plain")
+                safe_theme = re.sub(r'[^a-zA-Z0-9]+', '_', theme)
+                story_file = f"story_{genre}_{safe_theme}.txt"
 
-        else:
-            st.error("Error while generating the story. Please try again")
+                st.download_button(
+                    label="📥 Download Story as Text",
+                    data=content,
+                    file_name=story_file,
+                    mime="text/plain"
+                )
+
+            else:
+                st.error(f"❌ Error {response.status_code}: Unable to generate the story.")
+        except Exception as e:
+            st.error(f"⚠️ An error occurred: {e}")

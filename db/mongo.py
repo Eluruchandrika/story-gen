@@ -8,8 +8,10 @@ MONGO_URI = os.getenv("MONGO_URI")
 if not MONGO_URI:
     raise Exception("MONGO_URI is not set in environment variables")
 
-print(f"Connecting to MongoDB with URI: {MONGO_URI}")
-
 client = AsyncIOMotorClient(MONGO_URI)
 db = client["story-gen"]
+
+# Main collection: all stories, including bookmarked info inside each story document
 story_collection = db["stories"]
+
+# You can remove saved_stories_collection if unused
