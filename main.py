@@ -17,20 +17,19 @@ os.makedirs("static", exist_ok=True)
 # Mount static directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# CORS setup – IMPORTANT: Specify actual frontend origins for allow_credentials=True
 origins = [
-    "http://localhost:3000",   # Your Next.js development server
-    "http://127.0.0.1:3000",   # Another common localhost address
-    "https://story-media-five.vercel.app/", # <--- IMPORTANT: Add your deployed frontend URL here
-    "https://ai-story-backend-1h6m.onrender.com" # If your backend itself also acts as a frontend (less common)
+    "http://localhost:3000",  
+    "http://127.0.0.1:3000", 
+    "https://story-media-five.vercel.app",
+    "https://ai-story-backend-1h6m.onrender.com"
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,  # Explicitly list allowed origins
-    allow_credentials=True, # Keep this True if your frontend sends cookies or auth headers
-    allow_methods=["*"],    # Allows all HTTP methods (GET, POST, PUT, DELETE, etc.)
-    allow_headers=["*"],    # Allows all headers
+    allow_origins=origins,  
+    allow_credentials=True, 
+    allow_methods=["*"],   
+    allow_headers=["*"],  
 )
 
 # API routes
