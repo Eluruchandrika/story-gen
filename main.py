@@ -21,7 +21,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 origins = [
     "http://localhost:3000",   # Your Next.js development server
     "http://127.0.0.1:3000",   # Another common localhost address
-    "https://ai-story-frontend-your-domain.com", # <--- IMPORTANT: Add your deployed frontend URL here
+    "https://story-media-five.vercel.app/", # <--- IMPORTANT: Add your deployed frontend URL here
     "https://ai-story-backend-1h6m.onrender.com" # If your backend itself also acts as a frontend (less common)
 ]
 
